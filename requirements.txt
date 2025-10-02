@@ -1,0 +1,9 @@
+streamlit
+deepface
+opencv-python
+matplotlib
+pillow
+streamlit-webrtc
+numpy
+tensorflow
+av
