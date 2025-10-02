@@ -327,7 +327,7 @@ if source_option == "📸 Przesyłanie pliku":
             </div>
             """, unsafe_allow_html=True)
 
-else:  # Kamera internetowa
+else:  # Kamera internetowaa
     st.markdown('<div class="sub-header">📹 Kamera Internetowa - Analiza Real-time</div>', unsafe_allow_html=True)
     
     st.markdown("""
