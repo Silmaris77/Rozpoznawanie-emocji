@@ -1,22 +1,60 @@
 import os
+import sys
+
 # Set environment variables before any imports to handle Keras compatibility
 os.environ['TF_USE_LEGACY_KERAS'] = '1'
 os.environ['TF_KERAS'] = '1'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+os.environ['PYTHONHASHSEED'] = '0'
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # Force CPU usage to avoid GPU memory issues
 
-import streamlit as st
-from deepface import DeepFace
-import matplotlib.pyplot as plt
-import cv2
-import numpy as np
-import tempfile
-from PIL import Image, ImageDraw, ImageFont
-import matplotlib.patches as patches
-from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, RTCConfiguration
-import av
-import threading
-import time
-from typing import Optional, Dict, Any, Tuple
+# Memory management for stability
+import gc
+gc.set_threshold(700, 10, 10)
+
+try:
+    import streamlit as st
+    from deepface import DeepFace
+    import matplotlib.pyplot as plt
+    plt.switch_backend('Agg')  # Use non-interactive backend for stability
+    import cv2
+    import numpy as np
+    import tempfile
+    from PIL import Image, ImageDraw, ImageFont
+    import matplotlib.patches as patches
+    from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, RTCConfiguration
+    import av
+    import threading
+    import time
+    from typing import Optional, Dict, Any, Tuple
+except ImportError as e:
+    print(f"Import error: {e}")
+    sys.exit(1)
+
+# Memory management functions
+def cleanup_memory():
+    """Clean up memory to prevent segmentation faults"""
+    gc.collect()
+    plt.close('all')
+
+@st.cache_data(show_spinner=False)
+def load_deepface_model():
+    """Preload DeepFace model with caching"""
+    try:
+        # Trigger model loading with a dummy analysis
+        import numpy as np
+        dummy_img = np.zeros((224, 224, 3), dtype=np.uint8)
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as tmp_file:
+            cv2.imwrite(tmp_file.name, dummy_img)
+            try:
+                DeepFace.analyze(tmp_file.name, actions=['emotion'], enforce_detection=False, silent=True)
+            except:
+                pass
+            finally:
+                os.unlink(tmp_file.name)
+        return True
+    except Exception:
+        return False
 
 # Konfiguracja strony
 st.set_page_config(
@@ -164,20 +202,25 @@ class VideoProcessor(VideoTransformerBase):
                 with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as tmp_file:
                     cv2.imwrite(tmp_file.name, img)
                     
-                    # Analizuj emocje (szybko, bez enforce_detection)
-                    result = DeepFace.analyze(
-                        tmp_file.name, 
-                        actions=['emotion'], 
-                        enforce_detection=False,
-                        silent=True
-                    )
-                    
-                    # Zapisz wynik
-                    with emotion_lock:
-                        if isinstance(result, list):
-                            latest_emotion_result = result[0]
-                        else:
-                            latest_emotion_result = result
+                    # Analizuj emocje (szybko, bez enforce_detection) with error handling
+                    try:
+                        result = DeepFace.analyze(
+                            tmp_file.name, 
+                            actions=['emotion'], 
+                            enforce_detection=False,
+                            silent=True,
+                            detector_backend='opencv'  # Use stable backend
+                        )
+                        
+                        # Zapisz wynik
+                        with emotion_lock:
+                            if isinstance(result, list):
+                                latest_emotion_result = result[0]
+                            else:
+                                latest_emotion_result = result
+                    except Exception:
+                        # Silently handle analysis errors in real-time mode
+                        pass
                     
                     # Usuń plik tymczasowy
                     os.unlink(tmp_file.name)
@@ -427,9 +470,29 @@ if uploaded_file is not None:
     st.markdown('<div class="sub-header">🤖 Analiza AI w Toku</div>', unsafe_allow_html=True)
     
     try:
-        # Analiza emocji używając DeepFace
+        # Preload model if not already loaded
+        load_deepface_model()
+        
+        # Clean memory before analysis
+        cleanup_memory()
+        
+        # Analiza emocji używając DeepFace with better error handling
         with st.spinner('🔍 Analizuję emocje i wykrywam twarz... To może potrwać chwilę.'):
-            result = DeepFace.analyze(tmp_path, actions=['emotion'], enforce_detection=False)
+            try:
+                result = DeepFace.analyze(
+                    tmp_path, 
+                    actions=['emotion'], 
+                    enforce_detection=False,
+                    silent=True,
+                    detector_backend='opencv'  # Use more stable backend
+                )
+            except Exception as analysis_error:
+                st.error(f"Błąd podczas analizy obrazu: {str(analysis_error)}")
+                st.info("Spróbuj użyć innego zdjęcia lub sprawdź czy twarz jest wyraźnie widoczna.")
+                raise analysis_error
+        
+        # Clean memory after analysis
+        cleanup_memory()
         
         # Utwórz wizualizację z zaznaczoną twarzą
         annotated_img, emotions, dominant_emotion = create_face_analysis_plot(tmp_path, result)
@@ -583,3 +646,5 @@ if uploaded_file is not None:
         # Usuń plik tymczasowy
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
+        # Clean up memory after processing
+        cleanup_memory()
