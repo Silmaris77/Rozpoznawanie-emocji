@@ -1,16 +1,19 @@
+import os
+os.environ['TF_USE_LEGACY_KERAS'] = '1'
+
 import streamlit as st
 from deepface import DeepFace
 import matplotlib.pyplot as plt
 import cv2
 import numpy as np
 import tempfile
-import os
 from PIL import Image, ImageDraw, ImageFont
 import matplotlib.patches as patches
 from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, RTCConfiguration
 import av
 import threading
 import time
+from typing import Optional, Dict, Any, Tuple
 
 # Konfiguracja strony
 st.set_page_config(
@@ -81,7 +84,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-def draw_emotion_on_face(image_path, face_region, dominant_emotion, confidence):
+def draw_emotion_on_face(image_path: str, face_region: Dict[str, int], dominant_emotion: str, confidence: float) -> Optional[np.ndarray]:
     """Rysuje prostokąt wokół twarzy i oznacza emocję"""
     # Wczytaj obraz
     img = cv2.imread(image_path)
@@ -112,7 +115,7 @@ def draw_emotion_on_face(image_path, face_region, dominant_emotion, confidence):
     
     return img_rgb
 
-def create_face_analysis_plot(image_path, result):
+def create_face_analysis_plot(image_path: str, result: Any) -> Tuple[Optional[np.ndarray], Optional[Dict[str, float]], Optional[Tuple[str, float]]]:
     """Tworzy wykres z zaznaczoną twarzą i emocjami"""
     # Wczytaj obraz
     img = cv2.imread(image_path)
@@ -477,7 +480,7 @@ if uploaded_file is not None:
                 
                 # Kolorowe słupki dla każdej emocji
                 emotion_colors_plot = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#feca57', '#ff9ff3', '#95e1d3']
-                bars = ax.bar(emotions.keys(), emotions.values(), color=emotion_colors_plot[:len(emotions)])
+                bars = ax.bar(list(emotions.keys()), list(emotions.values()), color=emotion_colors_plot[:len(emotions)])
                 ax.set_ylabel('Pewność (%)', fontsize=12)
                 ax.set_title('Rozkład wszystkich emocji', fontsize=14, pad=20)
                 ax.set_ylim(0, 100)
@@ -504,14 +507,20 @@ if uploaded_file is not None:
                 if not filtered_emotions:  # Jeśli wszystkie są < 1%, pokaż wszystkie
                     filtered_emotions = emotions
                 
-                wedges, texts, autotexts = ax2.pie(
-                    filtered_emotions.values(), 
-                    labels=filtered_emotions.keys(), 
+                pie_result = ax2.pie(
+                    list(filtered_emotions.values()), 
+                    labels=list(filtered_emotions.keys()), 
                     autopct='%1.1f%%', 
                     colors=colors[:len(filtered_emotions)], 
                     startangle=90,
                     textprops={'fontsize': 10}
                 )
+                # Handle variable unpacking based on return type
+                if len(pie_result) == 3:
+                    wedges, texts, autotexts = pie_result
+                else:
+                    wedges, texts = pie_result
+                    autotexts = []
                 ax2.set_title('Procentowy rozkład emocji', fontsize=14, pad=20)
                 st.pyplot(fig2)
         
