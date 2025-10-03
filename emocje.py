@@ -4,8 +4,6 @@ import sys
 # Import Streamlit first to avoid conflicts
 try:
     import streamlit as st
-    st.write("🚀 Starting Emotion Recognition App...")
-    st.write("✅ Streamlit imported successfully")
 except ImportError as e:
     print(f"❌ Failed to import Streamlit: {e}")
     sys.exit(1)
@@ -27,31 +25,20 @@ import gc
 gc.set_threshold(700, 10, 10)
 
 # Add error handling for imports
-st.write("🔄 Starting application...")
-st.write(f"🐍 Python version: {sys.version}")
 
 try:
-    st.write("🤖 Importing DeepFace...")
     
     # Try to force headless mode for cv2
     import cv2
-    st.write(f"👁️ OpenCV version: {cv2.__version__}")
     
     from deepface import DeepFace
-    st.write("✅ DeepFace imported successfully")
     
-    st.write("📊 Importing matplotlib...")
     import matplotlib.pyplot as plt
     plt.switch_backend('Agg')  # Use non-interactive backend for stability
-    print("✅ matplotlib imported successfully")
     
-    print("👁️ Importing OpenCV...")
     import cv2
-    print("✅ OpenCV imported successfully")
     
-    print("🔢 Importing numpy...")
     import numpy as np
-    print("✅ numpy imported successfully")
     import tempfile
     from PIL import Image, ImageDraw, ImageFont
     import matplotlib.patches as patches
@@ -170,8 +157,6 @@ try:
     import threading
     import time
     from typing import Optional, Dict, Any, Tuple
-    
-    st.success("🎉 All imports successful!")
     
 except ImportError as e:
     st.error(f"❌ Import error: {e}")
