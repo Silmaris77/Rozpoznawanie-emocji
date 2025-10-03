@@ -17,20 +17,30 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 os.environ['PYTHONHASHSEED'] = '0'
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # Force CPU usage to avoid GPU memory issues
 
+# OpenCV headless environment variables
+os.environ['QT_QPA_PLATFORM'] = 'offscreen'
+os.environ['OPENCV_VIDEOIO_PRIORITY_MSMF'] = '0'
+os.environ['DISPLAY'] = ''
+
 # Memory management for stability
 import gc
 gc.set_threshold(700, 10, 10)
 
 # Add error handling for imports
-print("🔄 Starting application...")
-print(f"Python version: {sys.version}")
+st.write("🔄 Starting application...")
+st.write(f"🐍 Python version: {sys.version}")
 
 try:
-    print("🤖 Importing DeepFace...")
-    from deepface import DeepFace
-    print("✅ DeepFace imported successfully")
+    st.write("🤖 Importing DeepFace...")
     
-    print("📊 Importing matplotlib...")
+    # Try to force headless mode for cv2
+    import cv2
+    st.write(f"👁️ OpenCV version: {cv2.__version__}")
+    
+    from deepface import DeepFace
+    st.write("✅ DeepFace imported successfully")
+    
+    st.write("📊 Importing matplotlib...")
     import matplotlib.pyplot as plt
     plt.switch_backend('Agg')  # Use non-interactive backend for stability
     print("✅ matplotlib imported successfully")
@@ -160,9 +170,28 @@ try:
     import threading
     import time
     from typing import Optional, Dict, Any, Tuple
+    
+    st.success("🎉 All imports successful!")
+    
 except ImportError as e:
-    print(f"Import error: {e}")
-    sys.exit(1)
+    st.error(f"❌ Import error: {e}")
+    
+    # Show which specific import failed
+    error_msg = str(e)
+    if "libGL.so.1" in error_msg:
+        st.error("🔧 OpenGL library issue detected")
+        st.info("💡 This is a known issue with OpenCV on headless servers")
+        st.info("🔄 Try refreshing the page or restarting the app")
+    elif "DeepFace" in error_msg:
+        st.error("🤖 DeepFace import failed")
+    elif "cv2" in error_msg or "opencv" in error_msg:
+        st.error("👁️ OpenCV import failed")
+    
+    st.stop()  # Stop execution but don't exit
+    
+except Exception as e:
+    st.error(f"❌ Unexpected error: {e}")
+    st.stop()
 
 # Memory management functions
 def cleanup_memory():
