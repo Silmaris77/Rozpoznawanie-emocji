@@ -4,7 +4,8 @@ import sys
 # Import Streamlit first to avoid conflicts
 try:
     import streamlit as st
-    print("✅ Streamlit imported successfully")
+    st.write("🚀 Starting Emotion Recognition App...")
+    st.write("✅ Streamlit imported successfully")
 except ImportError as e:
     print(f"❌ Failed to import Streamlit: {e}")
     sys.exit(1)

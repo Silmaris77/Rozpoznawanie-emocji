@@ -1,0 +1,4 @@
+# Constraints to prevent opencv-python installation
+# Only allow headless version
+opencv-python-headless==4.8.1.78
+opencv-python # Block this package completely

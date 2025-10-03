@@ -2,11 +2,4 @@ streamlit
 tensorflow==2.15.0
 tf-keras
 opencv-python-headless==4.8.1.78
-# Install DeepFace dependencies manually to avoid opencv-python conflict
-retina-face==0.0.17
-tqdm
-gdown
-pandas
-pillow
-# Install DeepFace last
 deepface==0.0.75
