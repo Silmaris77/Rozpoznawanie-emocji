@@ -1,4 +1,6 @@
 streamlit
+tensorflow==2.15.1
+tf-keras
 opencv-python-headless
 opencv-contrib-python-headless
-deepface==0.0.79
+deepface==0.0.75
