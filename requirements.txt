@@ -1,12 +1,3 @@
 streamlit
-deepface==0.0.75
-opencv-python-headless==4.8.1.78
-matplotlib
-pillow
-numpy<2.0.0
-tensorflow==2.15.0
-tf-keras
-pandas
-gdown
-tqdm
-flask
+deepface==0.0.79
+opencv-python-headless
