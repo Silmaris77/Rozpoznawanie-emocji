@@ -1,6 +1,14 @@
 import os
 import sys
 
+# Import Streamlit first to avoid conflicts
+try:
+    import streamlit as st
+    print("✅ Streamlit imported successfully")
+except ImportError as e:
+    print(f"❌ Failed to import Streamlit: {e}")
+    sys.exit(1)
+
 # Set environment variables before any imports to handle Keras compatibility
 os.environ['TF_USE_LEGACY_KERAS'] = '1'
 os.environ['TF_KERAS'] = '1'
@@ -12,13 +20,27 @@ os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # Force CPU usage to avoid GPU memory
 import gc
 gc.set_threshold(700, 10, 10)
 
+# Add error handling for imports
+print("🔄 Starting application...")
+print(f"Python version: {sys.version}")
+
 try:
-    import streamlit as st
+    print("🤖 Importing DeepFace...")
     from deepface import DeepFace
+    print("✅ DeepFace imported successfully")
+    
+    print("📊 Importing matplotlib...")
     import matplotlib.pyplot as plt
     plt.switch_backend('Agg')  # Use non-interactive backend for stability
+    print("✅ matplotlib imported successfully")
+    
+    print("👁️ Importing OpenCV...")
     import cv2
+    print("✅ OpenCV imported successfully")
+    
+    print("🔢 Importing numpy...")
     import numpy as np
+    print("✅ numpy imported successfully")
     import tempfile
     from PIL import Image, ImageDraw, ImageFont
     import matplotlib.patches as patches
