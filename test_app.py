@@ -43,20 +43,48 @@ except Exception as e:
 
 # Test OpenCV headless first
 try:
-    # Force headless mode
+    # Force headless mode and check for opencv conflicts
     os.environ['QT_QPA_PLATFORM'] = 'offscreen'
-    import cv2
-    st.write(f"👁️ OpenCV version: {cv2.__version__}")
-    st.write("✅ OpenCV headless imported successfully")
     
-    # Test basic OpenCV operation
-    import numpy as np
-    test_img = np.zeros((100, 100, 3), dtype=np.uint8)
-    gray = cv2.cvtColor(test_img, cv2.COLOR_BGR2GRAY)
-    st.write("✅ OpenCV basic operations working")
+    # Check if opencv-python is installed alongside opencv-python-headless
+    import subprocess
+    import sys
+    
+    try:
+        result = subprocess.run([sys.executable, '-c', 'import cv2; print("OpenCV import test passed")'], 
+                              capture_output=True, text=True, timeout=10)
+        if result.returncode == 0:
+            st.write("✅ OpenCV subprocess test passed")
+            import cv2
+            st.write(f"👁️ OpenCV version: {cv2.__version__}")
+            st.write("✅ OpenCV headless imported successfully")
+            
+            # Test basic OpenCV operation
+            import numpy as np
+            test_img = np.zeros((100, 100, 3), dtype=np.uint8)
+            gray = cv2.cvtColor(test_img, cv2.COLOR_BGR2GRAY)
+            st.write("✅ OpenCV basic operations working")
+        else:
+            st.error(f"❌ OpenCV subprocess failed: {result.stderr}")
+    except subprocess.TimeoutExpired:
+        st.error("❌ OpenCV import timeout")
+    except Exception as subprocess_error:
+        st.error(f"❌ OpenCV subprocess error: {subprocess_error}")
     
 except Exception as e:
     st.error(f"❌ OpenCV error: {e}")
+    
+    # Try alternative approach
+    try:
+        st.info("🔄 Trying alternative OpenCV import...")
+        import importlib.util
+        cv2_spec = importlib.util.find_spec("cv2")
+        if cv2_spec:
+            st.write(f"✅ cv2 module found at: {cv2_spec.origin}")
+        else:
+            st.error("❌ cv2 module not found")
+    except Exception as alt_error:
+        st.error(f"❌ Alternative test failed: {alt_error}")
 
 # Test DeepFace
 try:
