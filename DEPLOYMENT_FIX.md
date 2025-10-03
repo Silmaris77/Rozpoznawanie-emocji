@@ -4,6 +4,8 @@
 1. ✅ ImportError: `cannot import name 'LocallyConnected2D' from 'tensorflow.keras.layers'`
 2. ✅ Segmentation fault on Streamlit Cloud
 3. ✅ Memory issues and stability problems
+4. ✅ Installation failures with non-zero exit code
+5. ✅ Package dependency conflicts
 
 ## ✅ Solutions Applied
 
@@ -17,21 +19,30 @@ os.environ['PYTHONHASHSEED'] = '0'
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # Force CPU usage
 ```
 
-### 2. Stable Package Versions (requirements.txt)
+### 2. Simplified Package Versions (requirements.txt)
 ```
-streamlit==1.37.0
+streamlit
 deepface==0.0.79
-opencv-python-headless==4.8.1.78
-matplotlib==3.7.2
-pillow==10.0.1
-numpy==1.24.3
-tensorflow==2.13.0
-protobuf==3.20.3
-retina-face==0.0.17
-tf-keras==2.13.0
-streamlit-webrtc==0.47.1
-av==10.0.0
+opencv-python-headless
+matplotlib
+pillow
+numpy<2.0.0
+tensorflow
+protobuf<4.0.0
+tf-keras
+pandas
+gdown
+tqdm
+flask
 ```
+
+### 3. Optional Camera Functionality
+- Made `streamlit-webrtc` optional to prevent installation failures
+- App works with file upload even if camera functionality is unavailable
+- Graceful fallback when webrtc dependencies are missing
+
+### 4. Python Version Specification
+- Added `.python-version` file specifying Python 3.9 for better compatibility
 
 ### 3. Memory Management
 - Added garbage collection: `gc.collect()`
@@ -68,13 +79,13 @@ developmentMode = false
 - ✅ All emotion recognition features operational
 - ✅ Compatible with Streamlit Cloud
 
-## 🔧 Key Fixes for Segmentation Fault
-1. **Pinned specific package versions** to avoid conflicts
-2. **Added memory management** with garbage collection
-3. **Forced CPU usage** to avoid GPU memory issues
-4. **Used stable detector backends** (opencv instead of retinaface)
-5. **Added comprehensive error handling**
-6. **Optimized Streamlit configuration**
+## 🔧 Key Fixes for Installation Issues
+1. **Simplified package dependencies** to prevent conflicts
+2. **Made camera functionality optional** to avoid webrtc installation issues
+3. **Used flexible version specifications** instead of pinned versions
+4. **Added Python version specification** (.python-version) for consistency
+5. **Removed problematic packages** (av, streamlit-webrtc from required deps)
+6. **Added graceful fallback** when optional dependencies are missing
 
 ## 📅 Date Resolved
 October 3, 2025

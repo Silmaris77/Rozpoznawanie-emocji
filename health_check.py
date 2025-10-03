@@ -34,7 +34,14 @@ def check_imports():
         from deepface import DeepFace
         print("✅ DeepFace OK")
         
-        print("✅ All imports successful!")
+        # Optional imports
+        try:
+            from streamlit_webrtc import webrtc_streamer
+            print("✅ Streamlit-WebRTC OK (camera functionality available)")
+        except ImportError:
+            print("⚠️ Streamlit-WebRTC not available (camera functionality disabled)")
+        
+        print("✅ All core imports successful!")
         return True
     except Exception as e:
         print(f"❌ Import error: {e}")

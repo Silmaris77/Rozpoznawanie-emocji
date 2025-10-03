@@ -22,8 +22,16 @@ try:
     import tempfile
     from PIL import Image, ImageDraw, ImageFont
     import matplotlib.patches as patches
-    from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, RTCConfiguration
-    import av
+    
+    # Try to import webrtc components, but make them optional
+    try:
+        from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, RTCConfiguration
+        import av
+        WEBRTC_AVAILABLE = True
+    except ImportError:
+        WEBRTC_AVAILABLE = False
+        st.warning("⚠️ Camera functionality is not available. Only file upload mode will work.")
+    
     import threading
     import time
     from typing import Optional, Dict, Any, Tuple
@@ -183,12 +191,14 @@ def create_face_analysis_plot(image_path: str, result: Any) -> Tuple[Optional[np
 latest_emotion_result = None
 emotion_lock = threading.Lock()
 
-class VideoProcessor(VideoTransformerBase):
-    """Klasa do przetwarzania wideo z kamery w czasie rzeczywistym"""
-    
-    def __init__(self):
-        self.frame_count = 0
-        self.analyze_every_n_frames = 30  # Analizuj co 30 klatek (około sekundy przy 30 FPS)
+# Only define VideoProcessor if webrtc is available
+if WEBRTC_AVAILABLE:
+    class VideoProcessor(VideoTransformerBase):
+        """Klasa do przetwarzania wideo z kamery w czasie rzeczywistym"""
+        
+        def __init__(self):
+            self.frame_count = 0
+            self.analyze_every_n_frames = 30  # Analizuj co 30 klatek (około sekundy przy 30 FPS)
         
     def transform(self, frame):
         global latest_emotion_result, emotion_lock
@@ -289,9 +299,14 @@ with st.sidebar.expander("ℹ️ O Aplikacji", expanded=True):
 st.sidebar.markdown("### ⚙️ Ustawienia Analizy")
 
 # Wybór źródła obrazu
+if WEBRTC_AVAILABLE:
+    source_options = ["📸 Przesyłanie pliku", "📹 Kamera internetowa"]
+else:
+    source_options = ["📸 Przesyłanie pliku"]
+    
 source_option = st.sidebar.radio(
     "📹 Źródło obrazu:",
-    ["📸 Przesyłanie pliku", "📹 Kamera internetowa"],
+    source_options,
     help="Wybierz skąd chcesz analizować emocje"
 )
 
@@ -376,79 +391,83 @@ if source_option == "📸 Przesyłanie pliku":
             </div>
             """, unsafe_allow_html=True)
 
-else:  # Kamera internetowaa
-    st.markdown('<div class="sub-header">📹 Kamera Internetowa - Analiza Real-time</div>', unsafe_allow_html=True)
-    
-    st.markdown("""
-    <div class="emotion-card">
-        <h4>🎥 Analiza emocji w czasie rzeczywistym</h4>
-        <p>• Kamera analizuje Twoje emocje na żywo</p>
-        <p>• Wyniki są aktualizowane co około sekundę</p>
-        <p>• Zielony prostokąt pokazuje wykrytą twarz</p>
-        <p>• Nazwa emocji pojawia się nad twarzą</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Konfiguracja WebRTC
-    RTC_CONFIGURATION = RTCConfiguration({
-        "iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]
-    })
-    
-    # Stream z kamery z analizą emocji
-    webrtc_ctx = webrtc_streamer(
-        key="emotion-analysis",
-        video_processor_factory=VideoProcessor,
-        rtc_configuration=RTC_CONFIGURATION,
-        media_stream_constraints={"video": True, "audio": False},
-        async_processing=True,
-    )
-    
-    # Wyświetlaj bieżące wyniki analizy
-    if webrtc_ctx.video_processor:
-        col1, col2 = st.columns(2)
+else:  # Kamera internetowa
+    if WEBRTC_AVAILABLE:
+        st.markdown('<div class="sub-header">📹 Kamera Internetowa - Analiza Real-time</div>', unsafe_allow_html=True)
         
-        with col1:
-            st.markdown("#### 📊 Bieżąca Analiza")
-            emotion_placeholder = st.empty()
-            
-        with col2:
-            st.markdown("#### 🎯 Statystyki")
-            stats_placeholder = st.empty()
+        st.markdown("""
+        <div class="emotion-card">
+            <h4>🎥 Analiza emocji w czasie rzeczywistym</h4>
+            <p>• Kamera analizuje Twoje emocje na żywo</p>
+            <p>• Wyniki są aktualizowane co około sekundę</p>
+            <p>• Zielony prostokąt pokazuje wykrytą twarz</p>
+            <p>• Nazwa emocji pojawia się nad twarzą</p>
+        </div>
+        """, unsafe_allow_html=True)
         
-        # Aktualizuj wyniki w czasie rzeczywistym
-        while webrtc_ctx.state.playing:
-            with emotion_lock:
-                if latest_emotion_result is not None:
-                    try:
-                        emotions = latest_emotion_result.get('emotion', {})  # type: ignore
-                        if emotions:
-                            dominant_emotion = max(emotions.items(), key=lambda x: x[1])
-                            
-                            # Emoji dla emocji
-                            emotion_emoji = {
-                                'happy': '😊', 'sad': '😢', 'angry': '😠', 'surprise': '😮', 
-                                'fear': '😨', 'disgust': '🤢', 'neutral': '😐'
-                            }
-                            emoji = emotion_emoji.get(dominant_emotion[0], '🎭')
-                            
-                            # Aktualizuj wyświetlanie
-                            with emotion_placeholder.container():
-                                st.markdown(f"""
-                                <div class="emotion-card">
-                                    <h2>{emoji} {dominant_emotion[0].upper()}</h2>
-                                    <h3>Pewność: {dominant_emotion[1]:.1f}%</h3>
-                                </div>
-                                """, unsafe_allow_html=True)
-                            
-                            # Wyświetl wszystkie emocje
-                            with stats_placeholder.container():
-                                for emotion, value in sorted(emotions.items(), key=lambda x: x[1], reverse=True)[:3]:
-                                    emoji_e = emotion_emoji.get(emotion, '🎭')
-                                    st.write(f"{emoji_e} {emotion}: {value:.1f}%")
-                    except Exception:
-                        pass
+        # Konfiguracja WebRTC
+        RTC_CONFIGURATION = RTCConfiguration({
+            "iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]
+        })
+        
+        # Stream z kamery z analizą emocji
+        webrtc_ctx = webrtc_streamer(
+            key="emotion-analysis",
+            video_processor_factory=VideoProcessor,
+            rtc_configuration=RTC_CONFIGURATION,
+            media_stream_constraints={"video": True, "audio": False},
+            async_processing=True,
+        )
+        
+        # Wyświetlaj bieżące wyniki analizy
+        if webrtc_ctx.video_processor:
+            col1, col2 = st.columns(2)
             
-            time.sleep(0.5)  # Aktualizuj co pół sekundy
+            with col1:
+                st.markdown("#### 📊 Bieżąca Analiza")
+                emotion_placeholder = st.empty()
+                
+            with col2:
+                st.markdown("#### 🎯 Statystyki")
+                stats_placeholder = st.empty()
+            
+            # Aktualizuj wyniki w czasie rzeczywistym
+            while webrtc_ctx.state.playing:
+                with emotion_lock:
+                    if latest_emotion_result is not None:
+                        try:
+                            emotions = latest_emotion_result.get('emotion', {})  # type: ignore
+                            if emotions:
+                                dominant_emotion = max(emotions.items(), key=lambda x: x[1])
+                                
+                                # Emoji dla emocji
+                                emotion_emoji = {
+                                    'happy': '😊', 'sad': '😢', 'angry': '😠', 'surprise': '😮', 
+                                    'fear': '😨', 'disgust': '🤢', 'neutral': '😐'
+                                }
+                                emoji = emotion_emoji.get(dominant_emotion[0], '🎭')
+                                
+                                # Aktualizuj wyświetlanie
+                                with emotion_placeholder.container():
+                                    st.markdown(f"""
+                                    <div class="emotion-card">
+                                        <h2>{emoji} {dominant_emotion[0].upper()}</h2>
+                                        <h3>Pewność: {dominant_emotion[1]:.1f}%</h3>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                                
+                                # Wyświetl wszystkie emocje
+                                with stats_placeholder.container():
+                                    for emotion, value in sorted(emotions.items(), key=lambda x: x[1], reverse=True)[:3]:
+                                        emoji_e = emotion_emoji.get(emotion, '🎭')
+                                        st.write(f"{emoji_e} {emotion}: {value:.1f}%")
+                        except Exception:
+                            pass
+                
+                time.sleep(0.5)  # Aktualizuj co pół sekundy
+    else:
+        st.error("⚠️ Funkcjonalność kamery nie jest dostępna w tym środowisku.")
+        st.info("🔄 Użyj opcji 'Przesyłanie pliku' aby analizować emocje ze zdjęć.")
     
     uploaded_file = None  # Brak pliku dla kamery
 
