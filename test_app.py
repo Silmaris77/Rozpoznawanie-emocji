@@ -22,10 +22,21 @@ try:
         st.write(f"🔧 Keras version: {keras.__version__}")
         
         # Test LocallyConnected2D availability
-        from tensorflow.keras.layers import LocallyConnected2D
-        st.write("✅ LocallyConnected2D available")
+        try:
+            from tensorflow.keras.layers import LocallyConnected2D  # type: ignore
+            st.write("✅ LocallyConnected2D available")
+        except ImportError:
+            st.warning("⚠️ LocallyConnected2D not available (Keras 3 issue)")
+            
+        # Test tf-keras availability
+        try:
+            import tf_keras
+            st.write(f"🔧 tf-keras version: {tf_keras.__version__}")
+        except ImportError:
+            st.warning("⚠️ tf-keras not available")
+            
     except ImportError as e:
-        st.warning(f"⚠️ Keras layer import issue: {e}")
+        st.warning(f"⚠️ Keras import issue: {e}")
         
 except Exception as e:
     st.error(f"❌ TensorFlow error: {e}")
