@@ -6,3 +6,5 @@ matplotlib
 numpy
 pillow
 deepface==0.0.75
+streamlit-webrtc
+aiortc

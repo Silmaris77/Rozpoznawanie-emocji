@@ -368,9 +368,9 @@ st.sidebar.markdown("### ⚙️ Ustawienia Analizy")
 
 # Wybór źródła obrazu
 if WEBRTC_AVAILABLE:
-    source_options = ["📸 Przesyłanie pliku", "📹 Kamera internetowa"]
+    source_options = ["📸 Przesyłanie pliku", "� Zdjęcie z kamery", "�📹 Kamera internetowa (live)"]
 else:
-    source_options = ["📸 Przesyłanie pliku"]
+    source_options = ["📸 Przesyłanie pliku", "📷 Zdjęcie z kamery"]
     
 source_option = st.sidebar.radio(
     "📹 Źródło obrazu:",
@@ -459,8 +459,48 @@ if source_option == "📸 Przesyłanie pliku":
             </div>
             """, unsafe_allow_html=True)
 
-else:  # Kamera internetowa
-    if WEBRTC_AVAILABLE:
+elif source_option == "📷 Zdjęcie z kamery":
+    # Sekcja robienia zdjęcia z kamery
+    st.markdown('<div class="sub-header">📷 Zrób Zdjęcie z Kamery</div>', unsafe_allow_html=True)
+    
+    # Streamlit camera input (jeśli dostępne)
+    try:
+        picture = st.camera_input("📸 Naciśnij aby zrobić zdjęcie")
+        
+        if picture is not None:
+            uploaded_file = picture
+            st.success("✅ Zdjęcie zostało zrobione!")
+        else:
+            uploaded_file = None
+            st.info("📷 Naciśnij przycisk kamery powyżej aby zrobić zdjęcie")
+            
+    except Exception as e:
+        st.error("❌ Kamera nie jest dostępna w tej przeglądarce")
+        st.info("💡 Spróbuj opcję 'Przesyłanie pliku' jako alternatywę")
+        uploaded_file = None
+
+else:  # Kamera internetowa (live)
+    if source_option == "📷 Zdjęcie z kamery":
+        # Sekcja robienia zdjęcia z kamery
+        st.markdown('<div class="sub-header">📷 Zrób Zdjęcie z Kamery</div>', unsafe_allow_html=True)
+        
+        # Streamlit camera input (jeśli dostępne)
+        try:
+            picture = st.camera_input("📸 Naciśnij aby zrobić zdjęcie")
+            
+            if picture is not None:
+                uploaded_file = picture
+                st.success("✅ Zdjęcie zostało zrobione!")
+            else:
+                uploaded_file = None
+                st.info("📷 Naciśnij przycisk kamery powyżej aby zrobić zdjęcie")
+                
+        except Exception as e:
+            st.error("❌ Kamera nie jest dostępna w tej przeglądarce")
+            st.info("💡 Spróbuj opcję 'Przesyłanie pliku' jako alternatywę")
+            uploaded_file = None
+            
+    elif WEBRTC_AVAILABLE:
         st.markdown('<div class="sub-header">📹 Kamera Internetowa - Analiza Real-time</div>', unsafe_allow_html=True)
         
         st.markdown("""
@@ -540,6 +580,7 @@ else:  # Kamera internetowa
     
     uploaded_file = None  # Brak pliku dla kamery
 
+# Sprawdź czy mamy zdjęcie do analizy
 if uploaded_file is not None:
     # Zapisz plik tymczasowo, bo DeepFace wymaga ścieżki do pliku
     with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as tmp_file:
