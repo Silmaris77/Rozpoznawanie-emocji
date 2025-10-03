@@ -23,14 +23,116 @@ try:
     from PIL import Image, ImageDraw, ImageFont
     import matplotlib.patches as patches
     
-    # Try to import webrtc components, but make them optional
+    # Import with type stubs for optional webrtc
     try:
-        from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, RTCConfiguration
+        from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, RTCConfiguration  # type: ignore
         import av
         WEBRTC_AVAILABLE = True
+        
+        # Define the real VideoProcessor when webrtc is available
+        class VideoProcessor(VideoTransformerBase):  # type: ignore
+            """Klasa do przetwarzania wideo z kamery w czasie rzeczywistym"""
+            
+            def __init__(self):
+                self.frame_count = 0
+                self.analyze_every_n_frames = 30  # Analizuj co 30 klatek (około sekundy przy 30 FPS)
+            
+            def recv(self, frame):
+                global latest_emotion_result, emotion_lock
+                
+                img = frame.to_ndarray(format="bgr24")
+                
+                # Analizuj emocje co N klatek żeby nie obciążać procesora
+                if self.frame_count % self.analyze_every_n_frames == 0:
+                    try:
+                        # Zapisz klatkę tymczasowo
+                        with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as tmp_file:
+                            cv2.imwrite(tmp_file.name, img)
+                            
+                            # Analizuj emocje (szybko, bez enforce_detection) with error handling
+                            try:
+                                result = DeepFace.analyze(
+                                    tmp_file.name, 
+                                    actions=['emotion'], 
+                                    enforce_detection=False,
+                                    silent=True,
+                                    detector_backend='opencv'  # Use stable backend
+                                )
+                                
+                                # Zapisz wynik
+                                with emotion_lock:
+                                    if isinstance(result, list):
+                                        latest_emotion_result = result[0]
+                                    else:
+                                        latest_emotion_result = result
+                            except Exception:
+                                # Silently handle analysis errors in real-time mode
+                                pass
+                            
+                            # Usuń plik tymczasowy
+                            os.unlink(tmp_file.name)
+                            
+                    except Exception as e:
+                        pass  # Zignoruj błędy analizy
+                
+                # Jeśli mamy wynik analizy, narysuj na obrazie
+                with emotion_lock:
+                    if latest_emotion_result is not None:
+                        try:
+                            emotions = latest_emotion_result.get('emotion', {})  # type: ignore
+                            face_region = latest_emotion_result.get('region', {})  # type: ignore
+                            
+                            if emotions and face_region:
+                                # Znajdź dominującą emocję
+                                dominant_emotion = max(emotions.items(), key=lambda x: x[1])
+                                
+                                # Narysuj prostokąt wokół twarzy
+                                x, y, w, h = face_region.get('x', 0), face_region.get('y', 0), face_region.get('w', 0), face_region.get('h', 0)
+                                if x > 0 and y > 0 and w > 0 and h > 0:
+                                    cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
+                                    
+                                    # Dodaj tekst z emocją
+                                    emotion_emoji = {
+                                        'happy': '😊', 'sad': '😢', 'angry': '😠', 'surprise': '😮', 
+                                        'fear': '😨', 'disgust': '🤢', 'neutral': '😐'
+                                    }
+                                    emoji = emotion_emoji.get(dominant_emotion[0], '🎭')
+                                    label = f"{dominant_emotion[0]}: {dominant_emotion[1]:.1f}%"  # Usunąłem emoji bo może nie działać w OpenCV
+                                    
+                                    # Rysuj tło dla tekstu
+                                    font = cv2.FONT_HERSHEY_SIMPLEX
+                                    font_scale = 0.6
+                                    thickness = 2
+                                    (text_width, text_height), _ = cv2.getTextSize(label, font, font_scale, thickness)
+                                    
+                                    cv2.rectangle(img, (x, y - text_height - 10), (x + text_width, y), (0, 255, 0), -1)
+                                    cv2.putText(img, label, (x, y - 5), font, font_scale, (0, 0, 0), thickness)
+                            
+                        except Exception as e:
+                            pass  # Zignoruj błędy rysowania
+                
+                self.frame_count += 1
+                return av.VideoFrame.from_ndarray(img, format="bgr24")
+        
     except ImportError:
         WEBRTC_AVAILABLE = False
         st.warning("⚠️ Camera functionality is not available. Only file upload mode will work.")
+        
+        # Define dummy classes when webrtc is not available
+        class VideoTransformerBase:
+            pass
+            
+        class VideoProcessor:
+            def __init__(self):
+                self.frame_count = 0
+                self.analyze_every_n_frames = 30
+                
+        class RTCConfiguration:
+            def __init__(self, *args, **kwargs):
+                pass
+                
+        def webrtc_streamer(*args, **kwargs):
+            return None
     
     import threading
     import time
@@ -191,92 +293,6 @@ def create_face_analysis_plot(image_path: str, result: Any) -> Tuple[Optional[np
 latest_emotion_result = None
 emotion_lock = threading.Lock()
 
-# Only define VideoProcessor if webrtc is available
-if WEBRTC_AVAILABLE:
-    class VideoProcessor(VideoTransformerBase):
-        """Klasa do przetwarzania wideo z kamery w czasie rzeczywistym"""
-        
-        def __init__(self):
-            self.frame_count = 0
-            self.analyze_every_n_frames = 30  # Analizuj co 30 klatek (około sekundy przy 30 FPS)
-        
-    def transform(self, frame):
-        global latest_emotion_result, emotion_lock
-        
-        img = frame.to_ndarray(format="bgr24")
-        
-        # Analizuj emocje co N klatek żeby nie obciążać procesora
-        if self.frame_count % self.analyze_every_n_frames == 0:
-            try:
-                # Zapisz klatkę tymczasowo
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg') as tmp_file:
-                    cv2.imwrite(tmp_file.name, img)
-                    
-                    # Analizuj emocje (szybko, bez enforce_detection) with error handling
-                    try:
-                        result = DeepFace.analyze(
-                            tmp_file.name, 
-                            actions=['emotion'], 
-                            enforce_detection=False,
-                            silent=True,
-                            detector_backend='opencv'  # Use stable backend
-                        )
-                        
-                        # Zapisz wynik
-                        with emotion_lock:
-                            if isinstance(result, list):
-                                latest_emotion_result = result[0]
-                            else:
-                                latest_emotion_result = result
-                    except Exception:
-                        # Silently handle analysis errors in real-time mode
-                        pass
-                    
-                    # Usuń plik tymczasowy
-                    os.unlink(tmp_file.name)
-                    
-            except Exception as e:
-                pass  # Zignoruj błędy analizy
-        
-        # Jeśli mamy wynik analizy, narysuj na obrazie
-        with emotion_lock:
-            if latest_emotion_result is not None:
-                try:
-                    emotions = latest_emotion_result.get('emotion', {})  # type: ignore
-                    face_region = latest_emotion_result.get('region', {})  # type: ignore
-                    
-                    if emotions and face_region:
-                        # Znajdź dominującą emocję
-                        dominant_emotion = max(emotions.items(), key=lambda x: x[1])
-                        
-                        # Narysuj prostokąt wokół twarzy
-                        x, y, w, h = face_region.get('x', 0), face_region.get('y', 0), face_region.get('w', 0), face_region.get('h', 0)
-                        if x > 0 and y > 0 and w > 0 and h > 0:
-                            cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
-                            
-                            # Dodaj tekst z emocją
-                            emotion_emoji = {
-                                'happy': '😊', 'sad': '😢', 'angry': '😠', 'surprise': '😮', 
-                                'fear': '😨', 'disgust': '🤢', 'neutral': '😐'
-                            }
-                            emoji = emotion_emoji.get(dominant_emotion[0], '🎭')
-                            label = f"{dominant_emotion[0]}: {dominant_emotion[1]:.1f}%"  # Usunąłem emoji bo może nie działać w OpenCV
-                            
-                            # Rysuj tło dla tekstu
-                            font = cv2.FONT_HERSHEY_SIMPLEX
-                            font_scale = 0.6
-                            thickness = 2
-                            (text_width, text_height), _ = cv2.getTextSize(label, font, font_scale, thickness)
-                            
-                            cv2.rectangle(img, (x, y - text_height - 10), (x + text_width, y), (0, 255, 0), -1)
-                            cv2.putText(img, label, (x, y - 5), font, font_scale, (0, 0, 0), thickness)
-                    
-                except Exception as e:
-                    pass  # Zignoruj błędy rysowania
-        
-        self.frame_count += 1
-        return img
-
 # Główny nagłówek aplikacji
 st.markdown('<h1 class="main-header">🎭 Analizator Emocji AI</h1>', unsafe_allow_html=True)
 st.markdown('<p style="text-align: center; font-size: 1.2rem; color: #666;">Wykrywaj emocje na zdjęciach dzięki sztucznej inteligencji</p>', unsafe_allow_html=True)
@@ -405,69 +421,70 @@ else:  # Kamera internetowa
         </div>
         """, unsafe_allow_html=True)
         
-        # Konfiguracja WebRTC
-        RTC_CONFIGURATION = RTCConfiguration({
-            "iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]
-        })
-        
-        # Stream z kamery z analizą emocji
-        webrtc_ctx = webrtc_streamer(
-            key="emotion-analysis",
-            video_processor_factory=VideoProcessor,
-            rtc_configuration=RTC_CONFIGURATION,
-            media_stream_constraints={"video": True, "audio": False},
-            async_processing=True,
-        )
-        
-        # Wyświetlaj bieżące wyniki analizy
-        if webrtc_ctx.video_processor:
-            col1, col2 = st.columns(2)
+        if WEBRTC_AVAILABLE:
+            # Konfiguracja WebRTC
+            RTC_CONFIGURATION = RTCConfiguration({
+                "iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]
+            })
             
-            with col1:
-                st.markdown("#### 📊 Bieżąca Analiza")
-                emotion_placeholder = st.empty()
-                
-            with col2:
-                st.markdown("#### 🎯 Statystyki")
-                stats_placeholder = st.empty()
+            # Stream z kamery z analizą emocji
+            webrtc_ctx = webrtc_streamer(
+                key="emotion-analysis",
+                video_processor_factory=VideoProcessor,
+                rtc_configuration=RTC_CONFIGURATION,
+                media_stream_constraints={"video": True, "audio": False},
+                async_processing=True,
+            )
             
-            # Aktualizuj wyniki w czasie rzeczywistym
-            while webrtc_ctx.state.playing:
-                with emotion_lock:
-                    if latest_emotion_result is not None:
-                        try:
-                            emotions = latest_emotion_result.get('emotion', {})  # type: ignore
-                            if emotions:
-                                dominant_emotion = max(emotions.items(), key=lambda x: x[1])
-                                
-                                # Emoji dla emocji
-                                emotion_emoji = {
-                                    'happy': '😊', 'sad': '😢', 'angry': '😠', 'surprise': '😮', 
-                                    'fear': '😨', 'disgust': '🤢', 'neutral': '😐'
-                                }
-                                emoji = emotion_emoji.get(dominant_emotion[0], '🎭')
-                                
-                                # Aktualizuj wyświetlanie
-                                with emotion_placeholder.container():
-                                    st.markdown(f"""
-                                    <div class="emotion-card">
-                                        <h2>{emoji} {dominant_emotion[0].upper()}</h2>
-                                        <h3>Pewność: {dominant_emotion[1]:.1f}%</h3>
-                                    </div>
-                                    """, unsafe_allow_html=True)
-                                
-                                # Wyświetl wszystkie emocje
-                                with stats_placeholder.container():
-                                    for emotion, value in sorted(emotions.items(), key=lambda x: x[1], reverse=True)[:3]:
-                                        emoji_e = emotion_emoji.get(emotion, '🎭')
-                                        st.write(f"{emoji_e} {emotion}: {value:.1f}%")
-                        except Exception:
-                            pass
+            # Wyświetlaj bieżące wyniki analizy
+            if webrtc_ctx and webrtc_ctx.video_processor:
+                col1, col2 = st.columns(2)
                 
-                time.sleep(0.5)  # Aktualizuj co pół sekundy
-    else:
-        st.error("⚠️ Funkcjonalność kamery nie jest dostępna w tym środowisku.")
-        st.info("🔄 Użyj opcji 'Przesyłanie pliku' aby analizować emocje ze zdjęć.")
+                with col1:
+                    st.markdown("#### 📊 Bieżąca Analiza")
+                    emotion_placeholder = st.empty()
+                    
+                with col2:
+                    st.markdown("#### 🎯 Statystyki")
+                    stats_placeholder = st.empty()
+                
+                # Aktualizuj wyniki w czasie rzeczywistym
+                if hasattr(webrtc_ctx, 'state') and webrtc_ctx.state.playing:
+                    with emotion_lock:
+                        if latest_emotion_result is not None:
+                            try:
+                                emotions = latest_emotion_result.get('emotion', {})  # type: ignore
+                                if emotions:
+                                    dominant_emotion = max(emotions.items(), key=lambda x: x[1])
+                                    
+                                    # Emoji dla emocji
+                                    emotion_emoji = {
+                                        'happy': '😊', 'sad': '😢', 'angry': '😠', 'surprise': '😮', 
+                                        'fear': '😨', 'disgust': '🤢', 'neutral': '😐'
+                                    }
+                                    emoji = emotion_emoji.get(dominant_emotion[0], '🎭')
+                                    
+                                    # Aktualizuj wyświetlanie
+                                    with emotion_placeholder.container():
+                                        st.markdown(f"""
+                                        <div class="emotion-card">
+                                            <h2>{emoji} {dominant_emotion[0].upper()}</h2>
+                                            <h3>Pewność: {dominant_emotion[1]:.1f}%</h3>
+                                        </div>
+                                        """, unsafe_allow_html=True)
+                                    
+                                    # Wyświetl wszystkie emocje
+                                    with stats_placeholder.container():
+                                        for emotion, value in sorted(emotions.items(), key=lambda x: x[1], reverse=True)[:3]:
+                                            emoji_e = emotion_emoji.get(emotion, '🎭')
+                                            st.write(f"{emoji_e} {emotion}: {value:.1f}%")
+                            except Exception:
+                                pass
+                    
+                    time.sleep(0.5)  # Aktualizuj co pół sekundy
+        else:
+            st.error("⚠️ Funkcjonalność kamery nie jest dostępna w tym środowisku.")
+            st.info("🔄 Użyj opcji 'Przesyłanie pliku' aby analizować emocje ze zdjęć.")
     
     uploaded_file = None  # Brak pliku dla kamery
 
